@@ -2,6 +2,7 @@ import glob
 import torch.nn as nn
 import torch
 import numpy as np
+from tqdm import tqdm
 
 from adversarial import PGD
 from dataset import getTestset
@@ -13,14 +14,27 @@ BATCH_SIZE_TEST = 512
 NOM_WORKERS_TEST = 4
 
 models = glob.glob(MODELS_PATH)
+
+def myFunc(e):
+    if(e.split("/")[-1].split("_")[-1].split(".")[0] == "fin"):
+        return 1000000
+        
+    return int(e.split("/")[-1].split("_")[-1].split(".")[0])
+
+models.sort(reverse=False, key=myFunc)
+
 criterion = nn.CrossEntropyLoss()
 
 image_names = []
 label_names = []
 
-for i,m in enumerate(models):
-    test_set = getTestset(BATCH_SIZE_TEST, NOM_WORKERS_TEST, PIN_MEMORY=True)
-    image, label = next(iter(test_set))
+test_set = getTestset(BATCH_SIZE_TEST, NOM_WORKERS_TEST, PIN_MEMORY=True)
+image_, label_ = next(iter(test_set))
+
+for i in tqdm(range(len(models))):
+    m = models[i]
+    image = image_.clone()
+    label = label_.clone()
 
     model = loadModel(m).to(DEVICE)
 
@@ -42,14 +56,16 @@ for i,m in enumerate(models):
 
 criterion = nn.CrossEntropyLoss()
 
-for i,m in enumerate(models):
+for i in tqdm(range(len(models))):
+    m = models[i]
+    
     ACC = []
     LOSS = []
 
     model = loadModel(m).to(DEVICE)
 
     for k in range(len(image_names)):
-        image_o, _ = next(iter(test_set))
+        image_o = image_.clone().to(DEVICE)
         image_o = image_o.to(DEVICE)
 
         image = torch.load(image_names[k]).to(DEVICE)
@@ -73,10 +89,7 @@ for i,m in enumerate(models):
 
         ACC.append((correct_o / total) - (correct / total))
         LOSS.append(loss - loss_o)
-
-        print("LOSS", loss - loss_o)
-        print((correct_o / total) - (correct / total))
-
+        
     with open(f'./Results/model_acc_{i}.npy', 'wb') as f:
         np.save(f, ACC)
 
